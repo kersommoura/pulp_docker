@@ -20,7 +20,7 @@ DOCKER_REMOTE_PATH = urljoin(BASE_REMOTE_PATH, 'docker/docker/')
 DOCKER_IMAGE_URL = urljoin(PULP_FIXTURES_BASE_URL, 'docker/busybox:latest.tar')
 """The URL to a Docker image as created by ``docker save``."""
 
-# hello-world is the smalest docker image available on docker hub 1.84kB
+# hello-world is the smallest docker image available on docker hub 1.84kB
 DOCKER_UPSTREAM_NAME = 'hello-world'
 """The name of a Docker repository.
 

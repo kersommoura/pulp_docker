@@ -3,9 +3,14 @@
 import contextlib
 import unittest
 from urllib.parse import urljoin
+from random import choice
 
 from pulp_smash import api, cli, config, exceptions
-from pulp_smash.pulp3.constants import ARTIFACTS_PATH, REPO_PATH
+from pulp_smash.pulp3.constants import (
+    ARTIFACTS_PATH,
+    LAZY_DOWNLOAD_POLICIES,
+    REPO_PATH,
+)
 from pulp_smash.pulp3.utils import (
     delete_orphans,
     get_content,
@@ -39,8 +44,8 @@ class PullContentTestCase(unittest.TestCase):
         1. Create a repository.
         2. Create a remote pointing to external registry.
         3. Sync the repository using the remote and re-read the repo data.
-        4. Create a docker distribution to serve the repository
-        5. Create another docker distribution to the serve the repository version
+        4. Create a docker distribution to serve the repository.
+        5. Create another docker distribution to the serve the repository version.
 
         This tests targets the following issue:
 
@@ -71,23 +76,21 @@ class PullContentTestCase(unittest.TestCase):
             cls.repo = cls.client.get(_repo['_href'])
 
             # Step 4.
-            response_dict = cls.client.using_handler(api.task_handler).post(
+            distribution = cls.client.using_handler(api.task_handler).post(
                 DOCKER_DISTRIBUTION_PATH,
                 gen_distribution(repository=cls.repo['_href'])
             )
-            distribution_href = response_dict['_href']
-            cls.distribution_with_repo = cls.client.get(distribution_href)
+            cls.distribution_with_repo = cls.client.get(distribution['_href'])
             cls.teardown_cleanups.append(
                 (cls.client.delete, cls.distribution_with_repo['_href'])
             )
 
             # Step 5.
-            response_dict = cls.client.using_handler(api.task_handler).post(
+            distribution = cls.client.using_handler(api.task_handler).post(
                 DOCKER_DISTRIBUTION_PATH,
                 gen_distribution(repository_version=cls.repo['_latest_version_href'])
             )
-            distribution_href = response_dict['_href']
-            cls.distribution_with_repo_version = cls.client.get(distribution_href)
+            cls.distribution_with_repo_version = cls.client.get(distribution['_href'])
             cls.teardown_cleanups.append(
                 (cls.client.delete, cls.distribution_with_repo_version['_href'])
             )
@@ -108,7 +111,7 @@ class PullContentTestCase(unittest.TestCase):
         2. Call dockerhub API and get blobsums for synced image.
         3. Compare the checksums.
         """
-        # Get local checksums for content synced from remote registy
+        # Get local checksums for content synced from remote registry
         checksums = [
             content['digest'] for content
             in get_content(self.repo)[DOCKER_CONTENT_NAME]
@@ -125,6 +128,7 @@ class PullContentTestCase(unittest.TestCase):
             ),
             'Cannot find a matching layer on remote registry.'
         )
+
 
     def test_pull_image_from_repository(self):
         """Verify that a client can pull the image from Pulp.
@@ -250,7 +254,8 @@ class PullLazyContentTestCase(unittest.TestCase):
         """Create class-wide variables and delete orphans.
 
         1. Create a repository.
-        2. Create a remote pointing to external registry with policy=on_demand.
+        2. Create a remote pointing to external registry with lazy
+           download policy.
         3. Sync the repository using the remote and re-read the repo data.
         4. Create a docker distribution to serve the repository
         5. Create another docker distribution to the serve the repository version
@@ -275,7 +280,8 @@ class PullLazyContentTestCase(unittest.TestCase):
 
             # Step 2
             cls.remote = cls.client.post(
-                DOCKER_REMOTE_PATH, gen_docker_remote(policy='on_demand')
+                DOCKER_REMOTE_PATH,
+                gen_docker_remote(policy="streamed")
             )
             cls.teardown_cleanups.append(
                 (cls.client.delete, cls.remote['_href'])
@@ -324,7 +330,7 @@ class PullLazyContentTestCase(unittest.TestCase):
         2. Call dockerhub API and get blobsums for synced image.
         3. Compare the checksums.
         """
-        # Get local checksums for content synced from remote registy
+        # Get local checksums for content synced from remote registry
         checksums = [
             content['digest'] for content
             in get_content(self.repo)[DOCKER_CONTENT_NAME]
@@ -374,6 +380,9 @@ class PullLazyContentTestCase(unittest.TestCase):
         )
 
         new_artifact_count = len(self.client.get(ARTIFACTS_PATH))
+
+        # from ipdb import set_trace
+        # set_trace()
         self.assertGreater(new_artifact_count, self.artifact_count)
 
         registry.rmi(DOCKER_UPSTREAM_NAME)

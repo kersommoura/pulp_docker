@@ -60,6 +60,8 @@ def get_docker_hub_remote_blobsums(upstream_name=DOCKER_UPSTREAM_NAME):
         headers={'Authorization': 'Bearer ' + token}
     )
     response.raise_for_status()
+    from ipdb import set_trace
+    set_trace()
     return response.json()['fsLayers']
 
 
